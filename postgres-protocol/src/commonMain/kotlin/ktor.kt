@@ -11,7 +11,7 @@ internal fun Input.readPacketUntilDelimiter(delimiter: Byte) = buildPacket {
 }
 
 internal fun Input.readCString() =
-    readPacketUntilDelimiter(0).readText()
+    readPacketUntilDelimiter(0).also { discard(1) }.readText()
 
 internal fun Output.writeCString(text: String) {
     writeText(text)

@@ -1,6 +1,7 @@
 package one.keia.oss.psql.protocol
 
 import io.ktor.utils.io.core.*
+import naibu.ext.print
 import kotlin.jvm.JvmInline
 
 public sealed interface Message {
@@ -146,17 +147,17 @@ public sealed interface Message {
         @JvmInline
         public value class Query(public val query: String) : Frontend {
             public companion object : MessageDeclaration<Query>(Type.Frontend, 'Q') {
-                override fun read0(packet: ByteReadPacket): Query = Query(packet.readText())
+                override fun read0(packet: ByteReadPacket): Query = Query(packet.readCString())
 
                 override fun write0(builder: BytePacketBuilder, value: Query) {
-                    builder.writeText(value.query)
+                    builder.writeCString(value.query)
                 }
             }
         }
 
         public data class SASLInitialResponse(
             val mechanismName: String,
-            val initialResponse: ByteReadPacket?,
+            val initialResponse: ByteArray?,
         ) : Frontend {
             public companion object : MessageDeclaration<SASLInitialResponse>(Type.Frontend, 'p') {
                 override fun read0(packet: ByteReadPacket): SASLInitialResponse {
@@ -166,8 +167,8 @@ public sealed interface Message {
                 override fun write0(builder: BytePacketBuilder, value: SASLInitialResponse) {
                     builder.writeCString(value.mechanismName)
                     if (value.initialResponse != null) {
-                        builder.writeInt(value.initialResponse.remaining.toInt())
-                        builder.writePacket(value.initialResponse)
+                        builder.writeInt(value.initialResponse.size)
+                        builder.writeFully(value.initialResponse)
                     } else {
                         builder.writeInt(-1)
                     }
@@ -175,25 +176,117 @@ public sealed interface Message {
             }
         }
 
-        public data class SASLResponse(val response: ByteReadPacket?) : Frontend {
+        @JvmInline
+        public value class SASLResponse(public val response: ByteArray) : Frontend {
             public companion object : MessageDeclaration<SASLResponse>(Type.Frontend, 'p') {
                 override fun read0(packet: ByteReadPacket): SASLResponse {
                     throw UnsupportedOperationException()
                 }
 
                 override fun write0(builder: BytePacketBuilder, value: SASLResponse) {
-                    if (value.response != null) {
-                        builder.writeInt(value.response.remaining.toInt())
-                        builder.writePacket(value.response)
-                    } else {
-                        builder.writeInt(-1)
-                    }
+                    builder.writeFully(value.response)
                 }
+            }
+        }
+
+        public data class StartupMessage(val protocolVersion: Int, val parameters: Map<Parameter, String>) : Frontend {
+            public enum class Parameter {
+                User,
+                Database,
+                Replication
+            }
+
+            public companion object : MessageDeclaration<StartupMessage>(Type.Frontend, 'p') {
+                override fun read0(packet: ByteReadPacket): StartupMessage {
+                    throw UnsupportedOperationException()
+                }
+
+                override fun write0(builder: BytePacketBuilder, value: StartupMessage) {
+                    builder.writeInt(value.protocolVersion)
+                    for ((parameter, value) in value.parameters) {
+                        builder.writeCString(parameter.name.lowercase())
+                        builder.writeCString(value)
+                    }
+                    builder.writeByte(0)
+                }
+            }
+        }
+
+        public data object Sync : Frontend, MessageDeclaration<Sync>(Type.Frontend, 'S') {
+            override fun read0(packet: ByteReadPacket): Sync = Sync
+
+            override fun write0(builder: BytePacketBuilder, value: Sync) {
+                // no-op
+            }
+        }
+
+        public data object Terminate : Frontend, MessageDeclaration<Terminate>(Type.Frontend, 'X') {
+
+            override fun read0(packet: ByteReadPacket): Terminate = Terminate
+            override fun write0(builder: BytePacketBuilder, value: Terminate) {
+                // no-op
             }
         }
     }
 
     public sealed interface Backend : Message {
+        public sealed interface Authentication : Backend {
+            public data object Ok : Authentication
+
+            public data object KerberosV5 : Authentication
+
+            public data object ClearTextPassword : Authentication
+
+            @JvmInline
+            public value class MD5Password(public val salt: ByteArray) : Authentication
+
+            public data object GSS : Authentication
+
+            @JvmInline
+            public value class GSSContinue(public val data: ByteArray) : Authentication
+
+            public data object SSPI : Authentication
+
+            @JvmInline
+            public value class SASL(public val mechanisms: List<String>) : Authentication
+
+            @JvmInline
+            public value class SASLContinue(public val data: ByteArray) : Authentication
+
+            @JvmInline
+            public value class SASLFinal(public val data: ByteArray) : Authentication
+
+            public companion object : MessageDeclaration<Authentication>(Type.Backend, 'R') {
+                override fun read0(packet: ByteReadPacket): Authentication =
+                    when (val code = packet.readInt()) {
+                        0    -> Ok
+                        2    -> KerberosV5
+                        3    -> ClearTextPassword
+                        5    -> MD5Password(packet.readBytes(4))
+                        7    -> GSS
+                        8    -> GSSContinue(packet.readBytes(packet.readInt()))
+                        9    -> SSPI
+                        10   -> SASL(buildList {
+                            while (packet.remaining > 1) {
+                                add(packet.readCString())
+                            }
+
+                            require(packet.readByte() == 0.toByte()) {
+                                "Expected 0 to terminate end of SASL mechanisms"
+                            }
+                        })
+
+                        11   -> SASLContinue(packet.readBytes())
+                        12   -> SASLFinal(packet.readBytes())
+                        else -> throw UnsupportedOperationException("Unknown authentication code: $code")
+                    }
+
+                override fun write0(builder: BytePacketBuilder, value: Authentication) {
+                    throw UnsupportedOperationException()
+                }
+            }
+        }
+
         public data class BackendKeyData(val processId: Int, val secretKey: Int) : Backend {
             public companion object : MessageDeclaration<BackendKeyData>(Type.Backend, 'K') {
                 override fun read0(packet: ByteReadPacket): BackendKeyData {
@@ -507,6 +600,28 @@ public sealed interface Message {
 
             override fun write0(builder: BytePacketBuilder, value: PortalSuspended) {
                 // no-op
+            }
+        }
+
+        @JvmInline
+        public value class ReadyForQuery(public val status: Status) : Backend {
+            public enum class Status(public val code: Char) {
+                Idle              ('I'),
+                Transaction       ('T'),
+                FailedTransaction ('E');
+
+                public companion object {
+                    public fun fromCode(code: Char): Status = entries.first { it.code == code }
+                }
+            }
+
+            public companion object : MessageDeclaration<ReadyForQuery>(Type.Backend, 'Z') {
+                override fun read0(packet: ByteReadPacket): ReadyForQuery =
+                    ReadyForQuery(Status.fromCode(packet.readChar()))
+
+                override fun write0(builder: BytePacketBuilder, value: ReadyForQuery) {
+                    builder.writeByte(value.status.code.toByte())
+                }
             }
         }
 

@@ -21,8 +21,8 @@ public abstract class MessageDeclaration<T : Message>(public val type: Type, pub
      * @param channel the channel to write to
      * @param value   the value to write
      */
-    public suspend fun write(channel: ByteWriteChannel, value: T) {
-        channel.writeByte(identifier.code.toByte())
+    public suspend fun write(channel: ByteWriteChannel, value: T, writeIdentifier: Boolean = true) {
+        if (writeIdentifier) channel.writeByte(identifier.code.toByte())
 
         val builder = BytePacketBuilder()
         write0(builder, value)
