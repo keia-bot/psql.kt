@@ -1,7 +1,7 @@
 package one.keia.oss.psql.protocol
 
 import io.ktor.utils.io.core.*
-import naibu.ext.print
+import one.keia.oss.psql.protocol.types.DataType
 import kotlin.jvm.JvmInline
 
 public sealed interface Message {
@@ -439,18 +439,24 @@ public sealed interface Message {
         }
 
         @JvmInline
-        public value class DataRow(public val columns: List<ByteArray>) : Backend {
+        public value class DataRow(public val columns: List<ByteArray?>) : Backend {
             public companion object : MessageDeclaration<DataRow>(Type.Backend, 'D') {
                 override fun read0(packet: ByteReadPacket): DataRow {
-                    val columns = List(packet.readShort().toInt()) { packet.readBytes(packet.readInt()) }
+                    val len = packet.readShort()
+
+                    val columns = List(len.toInt()) {
+                        val size = packet.readInt()
+                        if (size == -1) null else packet.readBytes(size)
+                    }
+
                     return DataRow(columns)
                 }
 
                 override fun write0(builder: BytePacketBuilder, value: DataRow) {
                     builder.writeShort(value.columns.size.toShort())
                     for (it in value.columns) {
-                        builder.writeInt(it.size)
-                        builder.writeFully(it)
+                        builder.writeInt(it?.size ?: -1)
+                        it?.let(builder::writeFully)
                     }
                 }
             }
@@ -631,7 +637,7 @@ public sealed interface Message {
                 val name: String,
                 val tableObjectId: Int?,
                 val tableAttributeNumber: Short?,
-                val dataTypeObjectId: Int,
+                val dataType: DataType<*>,
                 val dataTypeSize: Short,
                 val typeModifier: Int,
                 val formatCode: FormatCode,
@@ -643,7 +649,7 @@ public sealed interface Message {
                         val name = packet.readCString()
                         val tableObjectId = packet.readInt().takeIf { it != 0 }
                         val tableAttributeNumber = packet.readShort().takeIf { it != 0.toShort() }
-                        val dataTypeObjectId = packet.readInt()
+                        val dataType = DataType.fromCode(packet.readInt())
                         val dataTypeSize = packet.readShort()
                         val typeModifier = packet.readInt()
                         val formatCode = FormatCode.fromCode(packet.readShort())
@@ -651,7 +657,7 @@ public sealed interface Message {
                             name,
                             tableObjectId,
                             tableAttributeNumber,
-                            dataTypeObjectId,
+                            dataType,
                             dataTypeSize,
                             typeModifier,
                             formatCode
