@@ -1,8 +1,14 @@
 package one.keia.oss.psql.driver.util
 
+import org.kotlincrypto.hash.md.MD5
 import org.kotlincrypto.hash.sha2.SHA256
 import org.kotlincrypto.macs.hmac.sha2.HmacSHA256
 import kotlin.experimental.xor
+
+@OptIn(ExperimentalStdlibApi::class)
+internal fun hexMD5(message: String): String = MD5()
+    .digest(message.encodeToByteArray())
+    .toHexString()
 
 internal fun hmac(key: ByteArray, message: ByteArray): ByteArray =
     HmacSHA256(key).doFinal(message)
