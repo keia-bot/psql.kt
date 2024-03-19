@@ -13,4 +13,6 @@ kotlin.sourceSets["commonMain"].dependencies {
     implementation(kotlincrypto.macs.hmac.sha2)
 }
 
+kotlin.sourceSets["jvmMain"].dependencies {
+    implementation("ch.qos.logback:logback-classic:1.4.11")
 }

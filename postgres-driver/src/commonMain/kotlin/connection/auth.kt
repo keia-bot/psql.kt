@@ -22,7 +22,8 @@ public suspend fun auth(connection: Connection): Unit = coroutineScope {
                 error("Server requested MD5-Password but client didn't configure a password")
             }
 
-            val digested = "md5" + hexMD5(hexMD5(credentials.password + credentials.username) + auth.salt.decodeToString())
+            val digested =
+                "md5" + hexMD5(hexMD5(credentials.password + credentials.username) + auth.salt.decodeToString())
             connection.send0(Message.Frontend.PasswordMessage(digested), flush = true)
         }
 
@@ -32,12 +33,15 @@ public suspend fun auth(connection: Connection): Unit = coroutineScope {
             }
 
             val password = connection.resources.credentials.intoOrNull<Credentials.Basic>()?.password
-                              ?: error("Server requested SASL authentication but client didn't configure a password.")
+                           ?: error("Server requested SASL authentication but client didn't configure a password.")
 
             val client = SCRAM.Client(SCRAM.generateClientNonce(), password)
 
             //
-            connection.send0(Message.Frontend.SASLInitialResponse(SCRAM.SHA_256, client.createClientFirstMessage()), flush = true)
+            connection.send0(
+                Message.Frontend.SASLInitialResponse(SCRAM.SHA_256, client.createClientFirstMessage()),
+                flush = true
+            )
 
             //
             val serverFirstMessage = connection.read0<Message.Backend.Authentication.SASLContinue>().data
@@ -55,7 +59,7 @@ public suspend fun auth(connection: Connection): Unit = coroutineScope {
 
         Message.Backend.Authentication.KerberosV5        -> TODO()
 
-        else -> error("invalid authentication message: $auth")
+        else                                             -> error("invalid authentication message: $auth")
     }
 
     connection.read0<Message.Backend.Authentication>()

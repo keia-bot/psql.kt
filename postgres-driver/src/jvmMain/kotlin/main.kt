@@ -23,7 +23,16 @@ public suspend fun main(): Unit = coroutineScope {
             .filterIsInstance<Message.Backend.DataRow>()
             .map { fields.zip(it.columns) }
             .map { it.toMap() }
-            .map { it.mapValues { (field, column) -> column?.let { bytes -> field.dataType.decode(field.formatCode, ByteReadPacket(bytes)) } } }
+            .map {
+                it.mapValues { (field, column) ->
+                    column?.let { bytes ->
+                        field.dataType.decode(
+                            field.formatCode,
+                            ByteReadPacket(bytes)
+                        )
+                    }
+                }
+            }
             .map { it.mapKeys { (field) -> field.name } }.toList()
             .forEach { it.print() }
 

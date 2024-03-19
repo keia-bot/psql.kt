@@ -2,7 +2,6 @@ package one.keia.oss.psql.protocol
 
 import io.ktor.utils.io.*
 import naibu.ext.into
-import naibu.ext.print
 import kotlin.reflect.KClass
 
 public data class MessageRegistry<M : Message>(val type: MessageDeclaration.Type) {

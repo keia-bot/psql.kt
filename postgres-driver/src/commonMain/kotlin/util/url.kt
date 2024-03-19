@@ -11,12 +11,12 @@ public data class PSQLUri(
     val database: String? = null,
     val credentials: Credentials.Basic? = null,
     val address: SocketAddress,
-    val parameters: Map<String, String>
+    val parameters: Map<String, String>,
 )
 
 public fun parseURI(value: String): PSQLUri {
     val url = Url(value)
-    require (SUPPORTED_SCHEMES.any { it.equals(url.protocol.name, true) }) {
+    require(SUPPORTED_SCHEMES.any { it.equals(url.protocol.name, true) }) {
         "Invalid protocol"
     }
 

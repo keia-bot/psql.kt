@@ -1,7 +1,5 @@
 package one.keia.oss.psql.protocol.types
 
-import io.ktor.utils.io.core.*
-import one.keia.oss.psql.protocol.FormatCode
 import kotlin.jvm.JvmInline
 
 public data class Vec2(val x: Float, val y: Float)

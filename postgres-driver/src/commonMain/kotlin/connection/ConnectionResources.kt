@@ -32,7 +32,7 @@ public data class ConnectionResources(
             address = uri.address
         }
 
-        public fun configureSocket(block: SocketOptions.TCPClientSocketOptions.() -> Unit)  {
+        public fun configureSocket(block: SocketOptions.TCPClientSocketOptions.() -> Unit) {
             socketConfigurator = block
         }
 

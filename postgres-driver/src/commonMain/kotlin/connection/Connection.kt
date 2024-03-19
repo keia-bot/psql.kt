@@ -40,11 +40,11 @@ public class Connection(public val resources: ConnectionResources) {
         auth(this)
 
         // finished
-        readTillReady {  }
+        readTillReady { }
     }
 
     public suspend fun detach() {
-        require (state.value is State.Ready) {
+        require(state.value is State.Ready) {
             "detach() can only be called on a connected connection."
         }
 
@@ -92,8 +92,6 @@ public class Connection(public val resources: ConnectionResources) {
 
         return message
     }
-
-
 
     public sealed interface State {
         public data object Idle : State
