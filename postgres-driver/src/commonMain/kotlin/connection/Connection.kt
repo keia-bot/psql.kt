@@ -53,13 +53,18 @@ public class Connection(public val resources: ConnectionResources) {
 
     }
 
-    internal suspend fun readTillReady(block: suspend (Message.Backend) -> Unit) {
+    internal suspend fun readTillReady(block: suspend (Message.Backend) -> Unit = {}) {
         var msg: Message.Backend? = null
         do {
             msg?.let { block(it) }
             msg = read0(true)
         } while (msg !is Message.Backend.ReadyForQuery)
         state.value = State.Ready(msg.into<Message.Backend.ReadyForQuery>().status)
+    }
+
+    internal suspend fun send0(messages: List<Message.Frontend>, flush: Boolean = true) {
+        messages.forEach { send0(it, false) }
+        if (flush) connection.output.flush()
     }
 
     internal suspend fun send0(message: Message.Frontend, flush: Boolean = true) {
