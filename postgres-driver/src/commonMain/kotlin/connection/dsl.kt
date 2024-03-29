@@ -5,18 +5,21 @@ import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
 
 @OptIn(ExperimentalContracts::class)
-public inline fun Connection(block: ConnectionResources.Builder.() -> Unit): Connection {
+public suspend inline fun Connection(block: ConnectionResources.Builder.() -> Unit): Connection {
     contract {
         callsInPlace(block, InvocationKind.EXACTLY_ONCE)
     }
 
-    return ConnectionResources.Builder()
+    val connection = ConnectionResources.Builder()
         .apply(block)
         .build()
         .let(::Connection)
+
+    connection.connect()
+    return connection
 }
 
-public inline fun Connection(
+public suspend inline fun Connection(
     uri: String,
     block: ConnectionResources.Builder.() -> Unit = {},
 ): Connection = Connection {

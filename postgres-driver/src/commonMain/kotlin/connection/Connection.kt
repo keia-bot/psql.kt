@@ -74,7 +74,7 @@ public class Connection(public val resources: ConnectionResources) {
     }
 
     internal suspend fun read0(handleErrors: Boolean = false): Message.Backend {
-        connection.input.awaitContent()
+//        connection.input.awaitContent()
 
         val msg = connection.input.readPostgresMessage()
                   ?: TODO("close connection when an unknown message has been read")

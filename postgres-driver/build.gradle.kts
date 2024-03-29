@@ -2,6 +2,16 @@ plugins {
     `psql-module`
 }
 
+kotlin {
+    linuxX64 {
+        binaries {
+            executable {
+                entryPoint = "main"
+            }
+        }
+    }
+}
+
 kotlin.sourceSets["commonMain"].dependencies {
     api(projects.postgresProtocol)
     implementation("io.ktor:ktor-network:2.3.7")
