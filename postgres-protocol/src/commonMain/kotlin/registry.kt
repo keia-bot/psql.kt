@@ -2,6 +2,7 @@ package one.keia.oss.psql.protocol
 
 import io.ktor.utils.io.*
 import naibu.ext.into
+import naibu.ext.print
 import kotlin.reflect.KClass
 
 public data class MessageRegistry<M : Message>(val type: MessageDeclaration.Type) {
@@ -38,6 +39,8 @@ public data class MessageRegistry<M : Message>(val type: MessageDeclaration.Type
 public val FRONTEND_MESSAGES: MessageRegistry<Message> = MessageRegistry(MessageDeclaration.Type.Frontend) {
     register(Message.Frontend.Close)
     register(Message.Frontend.CopyFail)
+    register(Message.Frontend.Execute)
+    register(Message.Frontend.Bind)
     register(Message.Frontend.Describe)
     register(Message.Frontend.Flush)
     register(Message.Frontend.FunctionCall)
@@ -56,7 +59,6 @@ public val FRONTEND_MESSAGES: MessageRegistry<Message> = MessageRegistry(Message
 private val BACKEND_MESSAGES = MessageRegistry(MessageDeclaration.Type.Backend) {
     register(Message.Backend.Authentication)
     register(Message.Backend.BackendKeyData)
-    register(Message.Backend.Bind)
     register(Message.Backend.BindComplete)
     register(Message.Backend.CloseComplete)
     register(Message.Backend.CommandComplete)
@@ -70,6 +72,7 @@ private val BACKEND_MESSAGES = MessageRegistry(MessageDeclaration.Type.Backend) 
     register(Message.Backend.NoData)
     register(Message.Backend.NoticeResponse)
     register(Message.Backend.NotificationResponse)
+    register(Message.Backend.ParameterDescription)
     register(Message.Backend.ParameterStatus)
     register(Message.Backend.ParseComplete)
     register(Message.Backend.PortalSuspended)

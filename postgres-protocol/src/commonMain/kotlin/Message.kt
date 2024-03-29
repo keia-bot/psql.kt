@@ -33,6 +33,77 @@ public sealed interface Message {
             }
         }
 
+        public data class Bind(
+            val destinationPortal: String,
+            val preparedStatement: String,
+            val parameterFormatCodes: List<FormatCode>,
+            val parameters: List<ByteArray>,
+            val resultFormatCodes: List<FormatCode>,
+        ) : Frontend {
+            public companion object : MessageDeclaration<Bind>(Type.Frontend, 'B') {
+                override fun read0(packet: ByteReadPacket): Bind {
+                    val dpn = packet.readCString()
+                    val ssn = packet.readCString()
+
+                    //
+                    val parameterFormatCodes = List(packet.readShort().toInt()) {
+                        FormatCode.fromCode(packet.readShort())
+                    }
+
+                    //
+                    val parameters = List(packet.readShort().toInt()) {
+                        packet.readBytes(packet.readInt())
+                    }
+
+                    //
+                    val resultFormatCodes = List(packet.readShort().toInt()) {
+                        FormatCode.fromCode(packet.readShort())
+                    }
+
+                    return Bind(dpn, ssn, parameterFormatCodes, parameters, resultFormatCodes)
+                }
+
+                override fun write0(builder: BytePacketBuilder, value: Bind) {
+                    builder.writeCString(value.destinationPortal)
+                    builder.writeCString(value.preparedStatement)
+
+                    //
+                    builder.writeShort(value.parameterFormatCodes.size.toShort())
+                    for (it in value.parameterFormatCodes) {
+                        builder.writeShort(it.code)
+                    }
+
+                    //
+                    builder.writeShort(value.parameters.size.toShort())
+                    for (it in value.parameters) {
+                        builder.writeInt(it.size)
+                        builder.writeFully(it)
+                    }
+
+                    //
+                    builder.writeShort(value.resultFormatCodes.size.toShort())
+                    for (it in value.resultFormatCodes) {
+                        builder.writeShort(it.code)
+                    }
+                }
+            }
+        }
+
+        public data class Execute(val name: String, val rows: Int): Frontend {
+            public companion object : MessageDeclaration<Execute>(Type.Frontend, 'E') {
+                override fun read0(packet: ByteReadPacket): Execute {
+                    val name = packet.readCString()
+                    val rows = packet.readInt()
+                    return Execute(name, rows)
+                }
+
+                override fun write0(builder: BytePacketBuilder, value: Execute) {
+                    builder.writeCString(value.name)
+                    builder.writeInt(value.rows)
+                }
+            }
+        }
+
         public data class Describe(val type: StatementType, val name: String) : Frontend {
             public companion object : MessageDeclaration<Describe>(Type.Frontend, 'D') {
                 override fun read0(packet: ByteReadPacket): Describe {
@@ -115,12 +186,12 @@ public sealed interface Message {
             }
         }
 
-        public data class Parse(val name: String, val query: String, val parameterTypes: List<Int>) : Frontend {
+        public data class Parse(val name: String, val query: String, val parameterTypes: List<DataType<*>>) : Frontend {
             public companion object : MessageDeclaration<Parse>(Type.Frontend, 'P') {
                 override fun read0(packet: ByteReadPacket): Parse {
                     val name = packet.readCString()
                     val query = packet.readCString()
-                    val parameterTypes = List(packet.readShort().toInt()) { packet.readInt() }
+                    val parameterTypes = List(packet.readShort().toInt()) { DataType.fromCode(packet.readInt()) }
                     return Parse(name, query, parameterTypes)
                 }
 
@@ -128,7 +199,7 @@ public sealed interface Message {
                     builder.writeCString(value.name)
                     builder.writeCString(value.query)
                     builder.writeShort(value.parameterTypes.size.toShort())
-                    for (it in value.parameterTypes) builder.writeInt(it)
+                    for (it in value.parameterTypes) builder.writeInt(it.id)
                 }
             }
         }
@@ -298,62 +369,6 @@ public sealed interface Message {
                 override fun write0(builder: BytePacketBuilder, value: BackendKeyData) {
                     builder.writeInt(value.processId)
                     builder.writeInt(value.secretKey)
-                }
-            }
-        }
-
-        public data class Bind(
-            val destinationPortal: String,
-            val preparedStatement: String,
-            val parameterFormatCodes: List<FormatCode>,
-            val parameters: List<ByteArray>,
-            val resultFormatCodes: List<Int>,
-        ) : Backend {
-            public companion object : MessageDeclaration<Bind>(Type.Backend, 'B') {
-                override fun read0(packet: ByteReadPacket): Bind {
-                    val dpn = packet.readCString()
-                    val ssn = packet.readCString()
-
-                    //
-                    val parameterFormatCodes = List(packet.readShort().toInt()) {
-                        FormatCode.fromCode(packet.readShort())
-                    }
-
-                    //
-                    val parameters = List(packet.readShort().toInt()) {
-                        packet.readBytes(packet.readInt())
-                    }
-
-                    //
-                    val resultFormatCodes = List(packet.readShort().toInt()) {
-                        packet.readInt()
-                    }
-
-                    return Bind(dpn, ssn, parameterFormatCodes, parameters, resultFormatCodes)
-                }
-
-                override fun write0(builder: BytePacketBuilder, value: Bind) {
-                    builder.writeCString(value.destinationPortal)
-                    builder.writeCString(value.preparedStatement)
-
-                    //
-                    builder.writeShort(value.parameterFormatCodes.size.toShort())
-                    for (it in value.parameterFormatCodes) {
-                        builder.writeShort(it.code)
-                    }
-
-                    //
-                    builder.writeShort(value.parameters.size.toShort())
-                    for (it in value.parameters) {
-                        builder.writeInt(it.size)
-                        builder.writeFully(it)
-                    }
-
-                    //
-                    builder.writeShort(value.resultFormatCodes.size.toShort())
-                    for (it in value.resultFormatCodes) {
-                        builder.writeInt(it)
-                    }
                 }
             }
         }
@@ -564,16 +579,19 @@ public sealed interface Message {
             }
         }
 
-        public data class ParameterDescription(val objectIDs: List<Int>) : Backend {
+        public data class ParameterDescription(val objectIDs: List<DataType<*>>) : Backend {
             public companion object : MessageDeclaration<ParameterDescription>(Type.Backend, 't') {
                 override fun read0(packet: ByteReadPacket): ParameterDescription {
-                    val objectIDs = List(packet.readShort().toInt()) { packet.readInt() }
+                    val objectIDs = List(packet.readShort().toInt()) {
+                        DataType.fromCode(packet.readInt())
+                    }
+
                     return ParameterDescription(objectIDs)
                 }
 
                 override fun write0(builder: BytePacketBuilder, value: ParameterDescription) {
                     builder.writeShort(value.objectIDs.size.toShort())
-                    for (it in value.objectIDs) builder.writeInt(it)
+                    for (it in value.objectIDs) builder.writeInt(it.id)
                 }
             }
         }
@@ -612,9 +630,9 @@ public sealed interface Message {
         @JvmInline
         public value class ReadyForQuery(public val status: Status) : Backend {
             public enum class Status(public val code: Char) {
-                Idle              ('I'),
-                Transaction       ('T'),
-                FailedTransaction ('E');
+                Idle('I'),
+                Transaction('T'),
+                FailedTransaction('E');
 
                 public companion object {
                     public fun fromCode(code: Char): Status = entries.first { it.code == code }
